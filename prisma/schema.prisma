@@ -83,3 +83,32 @@ model TelegramFile {
   fileUrl        String?  // Link proxy Cloudflare
   createdAt      DateTime @default(now())
 }
+
+// Đề thi trường/sở (Module 3 - ĐỀ THI)
+model ExamPaper {
+  id           String   @id @default(cuid())
+  title        String                        // "Đề thi HK1 Vật lý 12"
+  grade        Int
+  category     String   @default("Trường")   // Trường, Sở, Đề Vip, Đề HSG, Đề vào 10...
+  schoolName   String?                       // "THPT Chuyên KHTN"
+  province     String?                       // "TP.HCM"
+  year         String?                       // "2024-2025"
+  duration     Int      @default(50)         // phút
+  questionIds  String                        // JSON array of question IDs
+  totalMC      Int      @default(0)
+  totalTF      Int      @default(0)
+  totalSA      Int      @default(0)
+  tags         String?                       // JSON array of tags
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+}
+
+// Lịch sử làm việc (Module 5 - QUẢN LÝ)
+model WorkHistory {
+  id          String   @id @default(cuid())
+  action      String                         // "create_matrix", "shuffle_exam", "export_word", "import_questions"
+  description String                         // Mô tả hành động
+  metadata    String?                        // JSON metadata (matrix config, exam info...)
+  createdAt   DateTime @default(now())
+}
+
