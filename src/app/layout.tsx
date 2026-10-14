@@ -1,9 +1,11 @@
-import type { Metadata } from "next";
-import "./globals.css";
+import type { Metadata } from 'next';
+import './globals.css';
+import Sidebar from '@/components/Sidebar';
+import Navbar from '@/components/Navbar';
 
 export const metadata: Metadata = {
-  title: "ScisPhy — Ngân Hàng Câu Hỏi & Đề Thi Vật Lý",
-  description: "Hệ thống quản lý câu hỏi, ma trận đề và xuất bản đề thi Vật lý chuẩn GDPT 2018.",
+  title: 'ScisPhy — Ngân Hàng Số Vật Lý Thông Minh (GDPT 2018)',
+  description: 'Hệ thống quản lý câu hỏi, ma trận đề và xuất bản đề thi Vật lý chuẩn GDPT 2018 K10-K11-K12.',
 };
 
 export default function RootLayout({
@@ -13,7 +15,13 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="vi">
-      <body className="bg-slate-900 text-slate-100 antialiased">{children}</body>
+      <body>
+        <Sidebar />
+        <div className="tiad-main">
+          <Navbar />
+          <main className="flex-1">{children}</main>
+        </div>
+      </body>
     </html>
   );
 }
