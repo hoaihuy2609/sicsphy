@@ -113,10 +113,23 @@ export default function QuestionBankPage() {
         const res = await fetch(`/api/questions?${params.toString()}`);
         const data = await res.json();
         if (data.success) {
-          setQuestions(data.questions || []);
-          setTotal(data.total || 0);
-          setTotalPages(data.totalPages || 1);
-          if (data.stats) setStats(data.stats);
+          setQuestions(data.data || []);
+          setTotal(data.pagination?.total || 0);
+          setTotalPages(data.pagination?.totalPages || 1);
+          if (data.stats) {
+            // API returns byDifficulty.level1/2/3/4 — normalize to {1,2,3,4}
+            setStats({
+              byDifficulty: {
+                1: data.stats.byDifficulty?.level1 || 0,
+                2: data.stats.byDifficulty?.level2 || 0,
+                3: data.stats.byDifficulty?.level3 || 0,
+                4: data.stats.byDifficulty?.level4 || 0,
+              },
+              byFormat: data.stats.byFormat || {
+                multipleChoice: 0, trueFalse: 0, shortAnswer: 0, essay: 0,
+              },
+            });
+          }
         }
       } catch (err) {
         console.error('Failed to load questions', err);
