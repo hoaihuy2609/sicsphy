@@ -1,0 +1,85 @@
+datasource db {
+  provider = "sqlite"
+  url      = "file:./dev.db"
+}
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+model Grade {
+  id        Int       @id
+  name      String
+  chapters  Chapter[]
+}
+
+model Chapter {
+  id        String   @id @default(cuid())
+  name      String
+  order     Int      @default(1)
+  gradeId   Int
+  grade     Grade    @relation(fields: [gradeId], references: [id], onDelete: Cascade)
+  topics    Topic[]
+}
+
+model Topic {
+  id        String     @id @default(cuid())
+  name      String
+  order     Int        @default(1)
+  chapterId String
+  chapter   Chapter    @relation(fields: [chapterId], references: [id], onDelete: Cascade)
+  questions Question[]
+}
+
+model Question {
+  id            String   @id @default(cuid())
+  code          String   @unique
+  grade         Int
+  topicId       String
+  topic         Topic    @relation(fields: [topicId], references: [id], onDelete: Cascade)
+  
+  // 1: Nhận biết, 2: Thông hiểu, 3: Vận dụng, 4: Vận dụng cao
+  difficulty    Int
+  
+  // MULTIPLE_CHOICE (4 phương án), TRUE_FALSE (4 ý a,b,c,d), SHORT_ANSWER (Điền số), ESSAY (Tự luận)
+  format        String
+  
+  content       String   // Nội dung câu hỏi + công thức KaTeX
+  tikzCode      String?  // Mã TikZ thuần nếu có (sơ đồ mạch điện, đồ thị)
+  options       String?  // JSON string
+  correctAnswer String   // Đáp án đúng
+  explanation   String?  // Lời giải chi tiết
+  source        String?  // Ví dụ: "Đề minh họa BGD 2025", "Chuyên KHTN"
+  
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+}
+
+model ExamMatrix {
+  id              String   @id @default(cuid())
+  name            String
+  grade           Int
+  totalQuestions  Int      @default(22)
+  distribution    String   // JSON string lưu cấu hình chi tiết ma trận
+  createdAt       DateTime @default(now())
+}
+
+model Exam {
+  id          String   @id @default(cuid())
+  title       String
+  grade       Int
+  schoolName  String?
+  duration    Int      @default(50) // Thời gian làm bài (phút)
+  questionIds String   // JSON string danh sách id câu hỏi
+  createdAt   DateTime @default(now())
+}
+
+model TelegramFile {
+  id             String   @id @default(cuid())
+  telegramFileId String   @unique
+  fileName       String
+  fileType       String   // docx, pdf, zip
+  size           Int
+  fileUrl        String?  // Link proxy Cloudflare
+  createdAt      DateTime @default(now())
+}
