@@ -55,20 +55,22 @@ export async function GET(req: NextRequest) {
     }
 
     // Đề thi trường/sở
-    if (type === 'all' || type === 'papers') {
+    if (type === 'all' || type === 'papers' || type === 'exam-papers' || type === 'examPapers') {
       const [papers, paperCount] = await Promise.all([
         prisma.examPaper.findMany({
           where: grade ? { grade } : undefined,
           orderBy: { createdAt: 'desc' },
-          skip: type === 'papers' ? skip : 0,
-          take: type === 'papers' ? limit : 10,
+          skip: (type === 'papers' || type === 'exam-papers' || type === 'examPapers') ? skip : 0,
+          take: (type === 'papers' || type === 'exam-papers' || type === 'examPapers') ? limit : 10,
         }),
         prisma.examPaper.count({ where: grade ? { grade } : undefined }),
       ]);
+      const paperList = papers.map((p) => ({ ...p, questionIds: JSON.parse(p.questionIds), tags: p.tags ? JSON.parse(p.tags) : [] }));
       result.papers = {
-        data: papers.map((p) => ({ ...p, questionIds: JSON.parse(p.questionIds), tags: p.tags ? JSON.parse(p.tags) : [] })),
+        data: paperList,
         total: paperCount,
       };
+      result.examPapers = result.papers;
     }
 
     // Lịch sử
@@ -89,19 +91,31 @@ export async function GET(req: NextRequest) {
 
     // Stats
     if (type === 'all') {
-      const [qCount, matrixCount, examCount, paperCount] = await Promise.all([
+      const [qCount, matrixCount, examCount, paperCount, historyCount] = await Promise.all([
         prisma.question.count(),
         prisma.examMatrix.count(),
         prisma.exam.count(),
         prisma.examPaper.count(),
+        prisma.workHistory.count(),
       ]);
       result.stats = {
         totalQuestions: qCount,
         totalMatrices: matrixCount,
         totalExams: examCount,
         totalPapers: paperCount,
+        totalExamPapers: paperCount,
+        totalHistory: historyCount,
       };
     }
+
+    // Provide unified data object for convenience
+    result.data = {
+      matrices: result.matrices?.data || [],
+      exams: result.exams?.data || [],
+      examPapers: result.papers?.data || [],
+      papers: result.papers?.data || [],
+      history: result.history?.data || [],
+    };
 
     return NextResponse.json(result);
   } catch (error: any) {
@@ -110,20 +124,43 @@ export async function GET(req: NextRequest) {
 }
 
 /**
- * DELETE /api/library — Xóa item theo type + id
- * Body: { type: 'matrix' | 'exam' | 'paper', id: string }
+ * DELETE /api/library — Xóa item theo type + id (hỗ trợ qua query params hoặc body JSON)
+ * Query/Body: type: 'matrix' | 'exam' | 'paper' | 'history', id: string
  */
 export async function DELETE(req: NextRequest) {
   try {
-    const body = await req.json();
-    const { type, id } = body;
+    let type: string | null = null;
+    let id: string | null = null;
+
+    try {
+      const body = await req.json();
+      if (body) {
+        type = body.type;
+        id = body.id;
+      }
+    } catch {
+      // Body is not JSON or empty
+    }
+
+    if (!type || !id) {
+      const { searchParams } = new URL(req.url);
+      type = type || searchParams.get('type');
+      id = id || searchParams.get('id');
+    }
 
     if (!type || !id) {
       return NextResponse.json({ success: false, error: 'Thiếu type hoặc id.' }, { status: 400 });
     }
 
+    // Normalize type
+    let normalizedType = type.toLowerCase();
+    if (normalizedType === 'matrices') normalizedType = 'matrix';
+    if (normalizedType === 'exams') normalizedType = 'exam';
+    if (['papers', 'exam-paper', 'exam-papers', 'exampaper', 'exampapers'].includes(normalizedType)) normalizedType = 'paper';
+    if (['work-history', 'workhistory'].includes(normalizedType)) normalizedType = 'history';
+
     let deleted: any;
-    switch (type) {
+    switch (normalizedType) {
       case 'matrix':
         deleted = await prisma.examMatrix.delete({ where: { id } });
         break;
@@ -133,16 +170,21 @@ export async function DELETE(req: NextRequest) {
       case 'paper':
         deleted = await prisma.examPaper.delete({ where: { id } });
         break;
+      case 'history':
+        deleted = await prisma.workHistory.delete({ where: { id } });
+        break;
       default:
-        return NextResponse.json({ success: false, error: 'Type không hợp lệ.' }, { status: 400 });
+        return NextResponse.json({ success: false, error: `Type "${type}" không hợp lệ.` }, { status: 400 });
     }
 
-    await prisma.workHistory.create({
-      data: {
-        action: `delete_${type}`,
-        description: `Xóa ${type}: ${deleted.name || deleted.title || id}`,
-      },
-    });
+    if (normalizedType !== 'history') {
+      await prisma.workHistory.create({
+        data: {
+          action: `delete_${normalizedType}`,
+          description: `Xóa ${normalizedType}: ${deleted.name || deleted.title || id}`,
+        },
+      });
+    }
 
     return NextResponse.json({ success: true, deleted });
   } catch (error: any) {

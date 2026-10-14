@@ -9,9 +9,11 @@ import { NextRequest, NextResponse } from 'next/server';
 export async function POST(req: NextRequest) {
   try {
     const body = await req.json();
-    const { action = 'latex-to-text', latex } = body;
+    const { action = 'latex-to-unicode' } = body;
+    const latex = body.latex || body.text || '';
 
     switch (action) {
+      case 'latex-to-unicode':
       case 'latex-to-text': {
         if (!latex) {
           return NextResponse.json({ success: false, error: 'Thiếu nội dung LaTeX.' }, { status: 400 });
@@ -27,10 +29,11 @@ export async function POST(req: NextRequest) {
         });
       }
 
+      case 'extract-math':
       case 'detect-math': {
         // Detect and extract all math expressions from text
         if (!latex) {
-          return NextResponse.json({ success: false, error: 'Thiếu nội dung.' }, { status: 400 });
+          return NextResponse.json({ success: false, error: 'Thiếu nội dung văn bản.' }, { status: 400 });
         }
 
         const expressions = extractMathExpressions(latex);
@@ -55,7 +58,7 @@ export async function POST(req: NextRequest) {
 
       default:
         return NextResponse.json(
-          { success: false, error: `Action "${action}" không hợp lệ. Dùng: latex-to-text, detect-math, validate-latex.` },
+          { success: false, error: `Action "${action}" không hợp lệ. Dùng: latex-to-unicode, extract-math, validate-latex.` },
           { status: 400 }
         );
     }
@@ -197,8 +200,9 @@ function extractMathExpressions(text: string): Array<{ type: string; raw: string
 // LaTeX validator
 // ═══════════════════════════════════════════
 
-function validateLatex(latex: string): { valid: boolean; issues: string[] } {
-  const issues: string[] = [];
+function validateLatex(latex: string): { valid: boolean; issues: string[]; errors: string[]; warnings: string[] } {
+  const errors: string[] = [];
+  const warnings: string[] = [];
 
   // Check balanced braces
   let braceCount = 0;
@@ -206,32 +210,37 @@ function validateLatex(latex: string): { valid: boolean; issues: string[] } {
     if (char === '{') braceCount++;
     if (char === '}') braceCount--;
     if (braceCount < 0) {
-      issues.push('Dấu } thừa (không có { tương ứng).');
+      errors.push('Dấu } thừa (không có { tương ứng).');
       break;
     }
   }
   if (braceCount > 0) {
-    issues.push(`Thiếu ${braceCount} dấu }.`);
+    errors.push(`Thiếu ${braceCount} dấu }.`);
   }
 
   // Check balanced $ delimiters
   const dollarCount = (latex.match(/(?<!\\)\$/g) || []).length;
   if (dollarCount % 2 !== 0) {
-    issues.push('Số dấu $ lẻ — thiếu dấu $ đóng/mở.');
+    errors.push('Số dấu $ lẻ — thiếu dấu $ đóng/mở.');
   }
 
   // Check common errors
   if (latex.includes('\\frac{') && !latex.includes('}{')) {
-    issues.push('\\frac có thể thiếu tham số thứ 2.');
+    errors.push('\\frac có thể thiếu tham số thứ 2.');
   }
 
   // Check for unsupported TikZ packages
   if (latex.includes('circuitikz')) {
-    issues.push('⚠️ Package circuitikz không được hỗ trợ trong TikZJax. Dùng TikZ thủ công.');
+    warnings.push('Package circuitikz không được hỗ trợ trong TikZJax. Dùng TikZ thủ công.');
   }
   if (latex.includes('pgfplots')) {
-    issues.push('⚠️ Package pgfplots không được hỗ trợ trong TikZJax.');
+    warnings.push('Package pgfplots không được hỗ trợ trong TikZJax.');
   }
 
-  return { valid: issues.length === 0, issues };
+  const issues = [
+    ...errors,
+    ...warnings.map(w => `⚠️ ${w}`)
+  ];
+
+  return { valid: errors.length === 0, issues, errors, warnings };
 }
